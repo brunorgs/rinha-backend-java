@@ -1,10 +1,14 @@
 package com.rinha.dto;
 
-import io.micronaut.serde.annotation.Serdeable;
+import com.rinha.model.Payment;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Instant;
 
-@Serdeable
-public record PaymentRequest(String correlationId, BigDecimal amount) implements Serializable {
+public record PaymentRequest(String correlationId, BigDecimal amount, String requestedAt) implements Serializable {
+
+    public Payment toModel() {
+        return new Payment(correlationId, amount, false, Instant.parse(requestedAt));
+    }
 }

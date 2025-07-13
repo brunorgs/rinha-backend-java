@@ -1,14 +1,6 @@
 package com.rinha.dto;
 
-import io.micronaut.serde.annotation.Serdeable;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-@Serdeable
-public record PaymentSummaryResponse(PaymentSummary defaultSummary, PaymentSummary fallback) {
-    public PaymentSummary getDefault() {
-        return defaultSummary;
-    }
-
-    public PaymentSummary getFallback() {
-        return fallback;
-    }
+public record PaymentSummaryResponse(@JsonProperty("default") PaymentSummary defaultSummary, PaymentSummary fallback) {
 }

@@ -1,62 +1,36 @@
 plugins {
-    id("io.micronaut.application") version "4.5.4"
-    id("com.gradleup.shadow") version "8.3.7"
-    id("io.micronaut.aot") version "4.5.4"
+    id 'java'
+    id 'org.springframework.boot' version '3.5.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.graalvm.buildtools.native' version '0.10.6'
 }
 
-version = "0.1"
-group = "com.rinha"
+group = 'com.rinha'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(24)
+    }
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    annotationProcessor("io.micronaut:micronaut-http-validation")
-    annotationProcessor("io.micronaut.serde:micronaut-serde-processor")
-    implementation("io.micronaut.serde:micronaut-serde-jackson")
-    implementation 'io.micronaut.reactor:micronaut-reactor'
-    compileOnly("io.micronaut:micronaut-http-client")
-    runtimeOnly("ch.qos.logback:logback-classic")
-    testImplementation("io.micronaut:micronaut-http-client")
+//    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+//    implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
+//    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    runtimeOnly 'org.postgresql:postgresql'
+//    runtimeOnly 'org.postgresql:r2dbc-postgresql'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-
-application {
-    mainClass = "com.rinha.Application"
+tasks.named('test') {
+    useJUnitPlatform()
 }
-java {
-    sourceCompatibility = JavaVersion.toVersion("21")
-    targetCompatibility = JavaVersion.toVersion("21")
-}
-
-
-graalvmNative.toolchainDetection = false
-
-micronaut {
-    runtime("netty")
-    testRuntime("junit5")
-    processing {
-        incremental(true)
-        annotations("com.rinha.*")
-    }
-    aot {
-        // Please review carefully the optimizations enabled below
-        // Check https://micronaut-projects.github.io/micronaut-aot/latest/guide/ for more details
-        optimizeServiceLoading = false
-        convertYamlToJava = false
-        precomputeOperations = true
-        cacheEnvironment = true
-        optimizeClassLoading = true
-        deduceEnvironment = true
-        optimizeNetty = true
-        replaceLogbackXml = true
-    }
-}
-
-
-tasks.named("dockerfileNative") {
-    jdkVersion = "21"
-}
-
-
