@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,12 +32,20 @@ public class PaymentController {
         this.fallbackProcessor = fallbackProcessor;
     }
 
-    @PostMapping("/payment")
+    @PostMapping("/payments")
     public ResponseEntity<Void> processPayment(@RequestBody PaymentRequest request) {
         PaymentRequest paymentRequest = new PaymentRequest(UUID.randomUUID().toString(), request.amount(), ZonedDateTime.now().toInstant().toString());
-        ResponseEntity<Object> response = defaultProcessor.processPayment(paymentRequest);
+        boolean fallback = false;
+
+        try {
+            defaultProcessor.processPayment(paymentRequest);
+        } catch (Exception e) {
+            fallbackProcessor.processPayment(paymentRequest);
+            fallback = true;
+        }
 
         Payment paymentModel = paymentRequest.toModel();
+        paymentModel.setFallback(fallback);
 
         paymentRepository.save(paymentModel);
         return ResponseEntity.status(HttpStatus.CREATED).build();
@@ -49,8 +58,10 @@ public class PaymentController {
 
         Map<Boolean, List<Payment>> collect = payments.stream().collect(Collectors.groupingBy(Payment::getFallback));
 
-        PaymentSummary defaultPayment = new PaymentSummary(collect.get(Boolean.FALSE).size(), collect.get(Boolean.FALSE).stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
-        PaymentSummary fallbackPayment = new PaymentSummary(collect.get(Boolean.TRUE).size(), collect.get(Boolean.TRUE).stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+        List<Payment> dPay = collect.getOrDefault(Boolean.FALSE, new ArrayList<>());
+        List<Payment> fPay = collect.getOrDefault(Boolean.TRUE, new ArrayList<>());
+        PaymentSummary defaultPayment = new PaymentSummary(dPay.size(), dPay.stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+        PaymentSummary fallbackPayment = new PaymentSummary(fPay.size(), fPay.stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
 
         PaymentSummaryResponse response = new PaymentSummaryResponse(defaultPayment, fallbackPayment);
 

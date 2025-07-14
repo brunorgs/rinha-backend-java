@@ -16,3 +16,11 @@ logging:
   level:
     org.springframework.r2dbc: INFO
     io.r2dbc.postgresql: INFO
+
+resilience4j.retry:
+  instances:
+    defaultPayment:
+      maxAttempts: 3
+      waitDuration: 2s
+      enableExponentialBackoff: true
+      exponentialBackoffMultiplier: 2

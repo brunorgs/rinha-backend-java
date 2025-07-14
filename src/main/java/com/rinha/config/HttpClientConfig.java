@@ -28,12 +28,12 @@ public class HttpClientConfig {
     @Bean
     public PaymentProcessor defaultProcessor() {
         RestClient restClient = RestClient.builder().baseUrl(defaultUrl)
-//                .requestInterceptor((request, body, execution) -> {
-//                    logRequest(request, body);
-//                    var response = execution.execute(request, body);
-//                    logResponse(request, response);
-//                    return response;
-//                })
+                .requestInterceptor((request, body, execution) -> {
+                    logRequest(request, body);
+                    var response = execution.execute(request, body);
+                    logResponse(request, response);
+                    return response;
+                })
                 .build();
 
         RestClientAdapter adapter = RestClientAdapter.create(restClient);
