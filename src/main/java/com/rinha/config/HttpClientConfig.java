@@ -28,12 +28,12 @@ public class HttpClientConfig {
     @Bean
     public PaymentProcessor defaultProcessor() {
         RestClient restClient = RestClient.builder().baseUrl(defaultUrl)
-                .requestInterceptor((request, body, execution) -> {
-                    logRequest(request, body);
-                    var response = execution.execute(request, body);
-                    logResponse(request, response);
-                    return response;
-                })
+//                .requestInterceptor((request, body, execution) -> {
+//                    logRequest(request, body);
+//                    var response = execution.execute(request, body);
+//                    logResponse(request, response);
+//                    return response;
+//                })
                 .build();
 
         RestClientAdapter adapter = RestClientAdapter.create(restClient);
@@ -48,7 +48,7 @@ public class HttpClientConfig {
 
     @Bean
     public PaymentProcessor fallbackProcessor() {
-        RestClient restClient = RestClient.builder().baseUrl("https://api.github.com/").build();
+        RestClient restClient = RestClient.builder().baseUrl(fallbackUrl).build();
         RestClientAdapter adapter = RestClientAdapter.create(restClient);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 

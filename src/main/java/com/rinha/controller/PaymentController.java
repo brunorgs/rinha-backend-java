@@ -13,7 +13,10 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 public class PaymentController {
@@ -33,8 +36,6 @@ public class PaymentController {
         PaymentRequest paymentRequest = new PaymentRequest(UUID.randomUUID().toString(), request.amount(), ZonedDateTime.now().toInstant().toString());
         ResponseEntity<Object> response = defaultProcessor.processPayment(paymentRequest);
 
-        System.out.println("Status " + response.getStatusCode());
-
         Payment paymentModel = paymentRequest.toModel();
 
         paymentRepository.save(paymentModel);
@@ -44,11 +45,25 @@ public class PaymentController {
     @GetMapping("/payments-summary")
     public ResponseEntity<PaymentSummaryResponse> getPaymentsSummary(@RequestParam Instant from, @RequestParam Instant to) {
 
-            PaymentSummaryResponse response = new PaymentSummaryResponse(
-                    new PaymentSummary(43236L, new BigDecimal("415542345.98")),
-                    new PaymentSummary(423545L, new BigDecimal("329347.34"))
-            );
+        List<Payment> payments = paymentRepository.findByRequestedAtBetween(from, to);
 
-            return ResponseEntity.ok(response);
+        Map<Boolean, List<Payment>> collect = payments.stream().collect(Collectors.groupingBy(Payment::getFallback));
+
+        PaymentSummary defaultPayment = new PaymentSummary(collect.get(Boolean.FALSE).size(), collect.get(Boolean.FALSE).stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+        PaymentSummary fallbackPayment = new PaymentSummary(collect.get(Boolean.TRUE).size(), collect.get(Boolean.TRUE).stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+
+        PaymentSummaryResponse response = new PaymentSummaryResponse(defaultPayment, fallbackPayment);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("purge-payments")
+    public ResponseEntity<String> purgePayments() {
+
+        paymentRepository.deleteAll();
+        defaultProcessor.purgePayments();
+        fallbackProcessor.purgePayments();
+
+        return ResponseEntity.ok(" OK");
     }
 }

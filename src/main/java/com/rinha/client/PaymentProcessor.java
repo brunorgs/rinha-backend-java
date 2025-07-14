@@ -14,4 +14,7 @@ public interface PaymentProcessor {
 
     @GetExchange(value = "/payments/service-health")
     StatusResponse status();
+
+    @PostExchange(value = "/admin/purge-payments", headers = "X-Rinha-Token=123")
+    ResponseEntity<Object> purgePayments();
 }
