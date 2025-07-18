@@ -1,31 +1,25 @@
 package com.rinha.model;
 
-//import jakarta.persistence.Entity;
-//import jakarta.persistence.GeneratedValue;
-//import jakarta.persistence.GenerationType;
-//import jakarta.persistence.Id;
-
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-
-//@Entity
 public class Payment {
-//    @Id
-//    @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
     private String correlationId;
     private BigDecimal amount;
     private boolean fallback;
     private Instant requestedAt;
 
-    public Payment(String correlationId, BigDecimal amount, boolean fallback, Instant requestedAt) {
+    public Payment(String correlationId, BigDecimal amount) {
         this.correlationId = correlationId;
         this.amount = amount;
-        this.fallback = fallback;
-        this.requestedAt = requestedAt;
+    }
+
+    public Payment(UUID id, String correlationId, BigDecimal amount) {
+        this.id = id;
+        this.correlationId = correlationId;
+        this.amount = amount;
     }
 
     public Payment() {
