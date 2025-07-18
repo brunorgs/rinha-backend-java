@@ -1,6 +1,7 @@
 package com.rinha.config;
 
 import com.rinha.client.PaymentProcessor;
+import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,18 +29,20 @@ public class HttpClientConfig {
     @Bean
     public PaymentProcessor defaultProcessor() {
         RestClient restClient = RestClient.builder().baseUrl(defaultUrl)
-                .requestInterceptor((request, body, execution) -> {
-                    logRequest(request, body);
-                    var response = execution.execute(request, body);
-                    logResponse(request, response);
-                    return response;
-                })
+//                .requestInterceptor((request, body, execution) -> {
+//                    logRequest(request, body);
+//                    var response = execution.execute(request, body);
+//                    logResponse(request, response);
+//                    return response;
+//                })
                 .build();
 
         RestClientAdapter adapter = RestClientAdapter.create(restClient);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 
-//        WebClient webClient = WebClient.builder().baseUrl(defaultUrl).build();
+//        WebClient webClient = WebClient.builder().baseUrl(defaultUrl)
+//                .filters(f -> f.add(logRequest()))
+//                .build();
 //        WebClientAdapter adapter = WebClientAdapter.create(webClient);
 //        HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 
@@ -52,13 +55,21 @@ public class HttpClientConfig {
         RestClientAdapter adapter = RestClientAdapter.create(restClient);
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 
-//        WebClient webClient = WebClient.builder().baseUrl(fallbackUrl).build();
+//        WebClient webClient = WebClient.builder().baseUrl(fallbackUrl)
+//                .filters(f -> f.add(logRequest()))
+//                .build();
 //        WebClientAdapter adapter = WebClientAdapter.create(webClient);
 //        HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(adapter).build();
 
         return factory.createClient(PaymentProcessor.class);
     }
 
+    @Bean
+    public HikariDataSource hikariDataSource() {
+        HikariDataSource ds = new HikariDataSource();
+        ds.setJdbcUrl("jdbc:postgresql://localhost:5432/rinha?currentSchema=public&user=postgres&password=postgres");
+        return ds;
+    }
 
     private void logRequest(HttpRequest request, byte[] body) {
         log.info("Request: {} {}", request.getMethod(), request.getURI());

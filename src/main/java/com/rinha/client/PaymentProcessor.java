@@ -12,7 +12,7 @@ public interface PaymentProcessor {
 
     @PostExchange("/payments")
     @Retry(name = "defaultPayment")
-    ResponseEntity<Object> processPayment(@RequestBody PaymentRequest paymentRequest);
+    ResponseEntity<Void> processPayment(@RequestBody PaymentRequest paymentRequest);
 
     @GetExchange(value = "/payments/service-health")
     StatusResponse status();

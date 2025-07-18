@@ -1,6 +1,9 @@
 server:
   port: 9999
 spring:
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: jdbc:postgresql://localhost:5432/rinha
     username: postgres

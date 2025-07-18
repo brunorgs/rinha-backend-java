@@ -1,9 +1,10 @@
-CREATE TABLE payment (
-    id UUID PRIMARY KEY,
-    correlation_id VARCHAR(255) NOT NULL,
-    amount DECIMAL(19, 2) NOT NULL,
-    fallback BOOLEAN NOT NULL DEFAULT FALSE,
-    requested_at TIMESTAMP WITH TIME ZONE NOT NULL,
+CREATE TABLE public.payment (
+	amount numeric(38, 2) NULL,
+	fallback bool NULL,
+	requested_at timestamptz(6) NULL,
+	id uuid NOT NULL,
+	correlation_id varchar(255) NULL,
+	CONSTRAINT payment_pkey PRIMARY KEY (id)
 );
 
 -- Índices para melhorar performance
