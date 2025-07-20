@@ -1,13 +1,16 @@
 package com.rinha.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rinha.dto.PaymentRequest;
 import com.rinha.dto.PaymentSummary;
 import com.rinha.dto.PaymentSummaryResponse;
 import com.zaxxer.hikari.HikariDataSource;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -19,34 +22,21 @@ import java.time.Instant;
 public class PaymentController {
 
     private final HikariDataSource dataSource;
+    private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
 
-    public PaymentController(HikariDataSource dataSource) {
+    public PaymentController(HikariDataSource dataSource, RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {
         this.dataSource = dataSource;
+        this.rabbitTemplate = rabbitTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/payments")
-    public ResponseEntity<Void> processPayment(@RequestBody PaymentRequest request) {
+    public ResponseEntity<Void> processPayment(@RequestBody PaymentRequest request) throws IOException {
 
-        queueInsert(request);
+        rabbitTemplate.convertAndSend("rinhaExchange", "payment", objectMapper.writeValueAsString(request));
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
-    }
-
-    public void queueInsert(PaymentRequest request) {
-
-        String query = "INSERT INTO queue (correlation_id, amount) VALUES (?, ?)";
-
-        try(Connection conn = dataSource.getConnection();
-            PreparedStatement preparedStatement = conn.prepareStatement(query)) {
-
-            preparedStatement.setString(1, request.correlationId());
-            preparedStatement.setBigDecimal(2, request.amount());
-
-            preparedStatement.execute();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     @GetMapping("/payments-summary")

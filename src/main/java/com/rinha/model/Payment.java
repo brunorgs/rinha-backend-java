@@ -1,10 +1,11 @@
 package com.rinha.model;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-public class Payment {
+public class Payment implements Serializable {
     private UUID id;
     private String correlationId;
     private BigDecimal amount;

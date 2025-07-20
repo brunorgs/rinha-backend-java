@@ -1,4 +1,6 @@
 package com.rinha.dto;
 
-public record StatusResponse(Boolean failing, Integer minResponseTime) {
+import java.io.Serializable;
+
+public record StatusResponse(Boolean failing, Integer minResponseTime) implements Serializable {
 }

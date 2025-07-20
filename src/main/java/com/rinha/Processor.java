@@ -1,82 +1,40 @@
 package com.rinha;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rinha.config.Config;
 import com.rinha.dto.PaymentRequest;
+import com.rinha.dto.StatusResponse;
 import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
-import org.springframework.context.annotation.Bean;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-@EnableAsync
 @Component
 public class Processor {
 
     private final HikariDataSource dataSource;
     private final Config httpClientConfig;
+    private final ObjectMapper objectMapper;
+    private final RabbitTemplate rabbitTemplate;
+    private AtomicBoolean shouldUseFallback = new AtomicBoolean(false);
+    private AtomicBoolean skipCalls = new AtomicBoolean(false);
 
-    public Processor(HikariDataSource dataSource, Config httpClientConfig) {
+    public Processor(HikariDataSource dataSource, Config httpClientConfig, ObjectMapper objectMapper, RabbitTemplate rabbitTemplate) {
         this.dataSource = dataSource;
         this.httpClientConfig = httpClientConfig;
-    }
-
-    @Bean
-    public ExecutorService processPaymentExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
-    }
-
-    @Async("processPaymentExecutor")
-    @Scheduled(fixedRate = 1)
-    public void queuePop() {
-
-        long start = System.currentTimeMillis();
-        String query = "delete from queue qe where qe.id = (select id from queue q order by q.created_at asc limit 1 for update skip locked) returning qe.correlation_id, qe.amount;";
-
-        try(Connection conn = dataSource.getConnection()) {
-//            PreparedStatement preparedStatement = conn.prepareStatement(query);
-//            ResultSet rs = preparedStatement.executeQuery()) {
-
-            conn.setAutoCommit(false);
-            PreparedStatement preparedStatement = conn.prepareStatement(query);
-            ResultSet rs = preparedStatement.executeQuery();
-
-            while(rs.next()) {
-
-                Payment payment = new Payment(
-                        rs.getString(1),
-                        rs.getObject(2, BigDecimal.class)
-                );
-
-                int status = callService(payment);
-
-                if(status == 200) {
-                    insertPayment(payment, conn);
-                }
-
-                if(status == 500) {
-                    queueInsert(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), null), conn);
-                }
-            }
-
-            conn.commit();
-            preparedStatement.close();
-            rs.close();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-//        System.out.println("TIME " + (System.currentTimeMillis() - start));
+        this.objectMapper = objectMapper;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     public Integer callService(Payment payment)  {
@@ -85,21 +43,25 @@ public class Processor {
         Integer status = httpClientConfig.callPayment(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), payment.getRequestedAt().toString()), false);
 
         if(status >= 500) {
+            shouldUseFallback.set(true);
             status = httpClientConfig.callPayment(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), payment.getRequestedAt().toString()), true);
             if(status == 200) payment.setFallback(true);
+            if(status == 500) skipCalls.set(true);
         }
 
         return status;
     }
 
-    public void queueInsert(PaymentRequest request, Connection conn) {
+    public void insertPayment(Payment payment) {
 
-        String query = "INSERT INTO queue (correlation_id, amount) VALUES (?, ?)";
+        String query = "INSERT INTO payment (amount, requested_at, fallback) VALUES (?, ?, ?)";
 
-        try(PreparedStatement preparedStatement = conn.prepareStatement(query)) {
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement preparedStatement = conn.prepareStatement(query)) {
 
-            preparedStatement.setString(1, request.correlationId());
-            preparedStatement.setBigDecimal(2, request.amount());
+            preparedStatement.setBigDecimal(1, payment.getAmount());
+            preparedStatement.setTimestamp(2, Timestamp.from(payment.getRequestedAt()));
+            preparedStatement.setBoolean(3, payment.getFallback());
 
             preparedStatement.execute();
 
@@ -108,21 +70,55 @@ public class Processor {
         }
     }
 
-    public void insertPayment(Payment payment, Connection conn) {
+    @RabbitListener(queues = "rinhaQueue", concurrency = "8")
+    public void receive(@Payload Message message) throws IOException {
 
-        String query = "INSERT INTO payment (id, correlation_id, amount, requested_at, fallback) VALUES (gen_random_uuid(), ?, ?, ?, ?)";
-
-        try(PreparedStatement preparedStatement = conn.prepareStatement(query)) {
-
-            preparedStatement.setString(1, payment.getCorrelationId());
-            preparedStatement.setBigDecimal(2, payment.getAmount());
-            preparedStatement.setTimestamp(3, Timestamp.from(payment.getRequestedAt()));
-            preparedStatement.setBoolean(4, payment.getFallback());
-
-            preparedStatement.execute();
-
-        } catch (Exception e) {
-            e.printStackTrace();
+        long start = System.currentTimeMillis();
+        if(skipCalls.get()) {
+//            System.out.println("LOOP");
+            rabbitTemplate.send("rinhaExchange", "payment", message);
+            return;
         }
+//        System.out.println(new String(message.getBody()));
+        Payment payment = objectMapper.readValue(message.getBody(), Payment.class);
+
+        long s= System.currentTimeMillis();
+        int status = callService(payment);
+//        System.out.println("TIME SERVICE " + (System.currentTimeMillis() - s));
+
+//        System.out.println("STATUS " + status);
+
+        if(status == 200) {
+            s = System.currentTimeMillis();
+            insertPayment(payment);
+//            System.out.println("TIME INSERT " + (System.currentTimeMillis() - s));
+        }
+
+//        if(status != 200) System.out.println("STATUS " + status);
+//        System.out.println("USE FALLBACK " + shouldUseFallback);
+//        System.out.println("SKIP CALLS " + skipCalls);
+
+//        System.out.println("TIME TOTAL " + (System.currentTimeMillis() - start));
+    }
+
+    @Scheduled(fixedRate = 5000)
+    public void status() {
+
+        StatusResponse statusDefault = httpClientConfig.callStatus(false);
+        StatusResponse statusFallback = httpClientConfig.callStatus(true);
+        boolean f = statusDefault.failing();
+
+        if(statusFallback.failing()) {
+            f = false;
+            skipCalls.set(true);
+        }
+
+        if(!statusDefault.failing() || !statusFallback.failing()) skipCalls.set(false);
+
+        if(!statusDefault.failing() && !statusFallback.failing()) {
+            f = statusDefault.minResponseTime() - statusFallback.minResponseTime() > 100;
+        }
+
+        shouldUseFallback.set(f);
     }
 }

@@ -4,6 +4,9 @@ spring:
   threads:
     virtual:
       enabled: true
+  rabbitmq:
+    username: rinha
+    password: rinha
   datasource:
     url: jdbc:postgresql://localhost:5432/rinha
     username: postgres
