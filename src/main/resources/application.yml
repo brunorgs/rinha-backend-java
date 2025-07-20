@@ -19,6 +19,8 @@ logging:
   level:
     org.springframework.r2dbc: INFO
     io.r2dbc.postgresql: INFO
+#    org.postgresql: TRACE
+#    com.zaxxer.hikari: DEBUG
 
 resilience4j.retry:
   instances:

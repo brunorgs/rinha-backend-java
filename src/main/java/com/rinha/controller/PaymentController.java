@@ -1,55 +1,46 @@
 package com.rinha.controller;
 
-import com.rinha.client.PaymentProcessor;
 import com.rinha.dto.PaymentRequest;
 import com.rinha.dto.PaymentSummary;
 import com.rinha.dto.PaymentSummaryResponse;
-import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.ZonedDateTime;
-import java.util.UUID;
-import java.util.logging.Logger;
 
 @RestController
 public class PaymentController {
 
-    private static final Logger logger = Logger.getLogger(PaymentController.class.getName());
-
-    private final PaymentProcessor defaultProcessor;
-    private final PaymentProcessor fallbackProcessor;
     private final HikariDataSource dataSource;
 
-    public PaymentController(PaymentProcessor defaultProcessor, PaymentProcessor fallbackProcessor, HikariDataSource dataSource) {
-        this.defaultProcessor = defaultProcessor;
-        this.fallbackProcessor = fallbackProcessor;
+    public PaymentController(HikariDataSource dataSource) {
         this.dataSource = dataSource;
     }
 
     @PostMapping("/payments")
     public ResponseEntity<Void> processPayment(@RequestBody PaymentRequest request) {
 
-        insert(request.toModel());
+        queueInsert(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    public void insert(Payment payment) {
+    public void queueInsert(PaymentRequest request) {
 
-        String query = "INSERT INTO payment (id, correlation_id, amount) VALUES (gen_random_uuid(), ?, ?)";
+        String query = "INSERT INTO queue (correlation_id, amount) VALUES (?, ?)";
 
         try(Connection conn = dataSource.getConnection();
             PreparedStatement preparedStatement = conn.prepareStatement(query)) {
 
-            preparedStatement.setString(1, payment.getCorrelationId());
-            preparedStatement.setBigDecimal(2, payment.getAmount());
+            preparedStatement.setString(1, request.correlationId());
+            preparedStatement.setBigDecimal(2, request.amount());
 
             preparedStatement.execute();
 
@@ -98,80 +89,5 @@ public class PaymentController {
         }
 
         return null;
-    }
-
-
-    @Scheduled(fixedDelay = 1000)
-    public void getUnprocessedPayments() {
-
-        String query = "select id, correlation_id, amount from payment where requested_at IS NULL;";
-
-        try(Connection conn = dataSource.getConnection();
-            PreparedStatement preparedStatement = conn.prepareStatement(query);
-            ResultSet resultSet = preparedStatement.executeQuery()) {
-
-            while(resultSet.next()) {
-
-                Payment payment = new Payment(
-                        resultSet.getObject(1, UUID.class),
-                        resultSet.getString(2),
-                        resultSet.getObject(3, BigDecimal.class)
-                );
-
-                callService(payment);
-
-                updatePayment(payment, conn);
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void updatePayment(Payment payment, Connection conn) {
-
-        String query = "update public.payment set requested_at=?, fallback=? where id=?;";
-
-        try(PreparedStatement preparedStatement = conn.prepareStatement(query)) {
-
-            preparedStatement.setTimestamp(1, Timestamp.from(payment.getRequestedAt()));
-            preparedStatement.setBoolean(2, payment.getFallback());
-            preparedStatement.setObject(3, payment.getId());
-
-            preparedStatement.execute();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void callService(Payment payment) {
-
-        payment.setRequestedAt(Instant.now());
-        try {
-            defaultProcessor.processPayment(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), ZonedDateTime.now().toInstant().toString()));
-        } catch (Exception e) {
-            fallbackProcessor.processPayment(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), ZonedDateTime.now().toInstant().toString()));
-            payment.setFallback(true);
-        }
-
-    }
-
-    @PostMapping("purge-payments")
-    public ResponseEntity<String> purgePayments() {
-
-        String query = "delete from payment;";
-
-        try(Connection conn = dataSource.getConnection();
-            PreparedStatement preparedStatement = conn.prepareStatement(query);) {
-            preparedStatement.execute();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        defaultProcessor.purgePayments();
-        fallbackProcessor.purgePayments();
-
-        return ResponseEntity.ok(" OK");
     }
 }
