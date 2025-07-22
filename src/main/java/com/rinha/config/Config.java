@@ -3,6 +3,7 @@ package com.rinha.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rinha.dto.PaymentRequest;
 import com.rinha.dto.StatusResponse;
+import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -47,7 +48,7 @@ public class Config {
                 .build();
     }
 
-    public Integer callPayment(PaymentRequest paymentRequest, boolean fallback) {
+    public Integer callPayment(Payment paymentRequest, boolean fallback) {
 
         String url = fallback ? fallbackUrl : defaultUrl;
 
@@ -100,7 +101,7 @@ public class Config {
 
     @Bean
     public Queue queue() {
-        return new Queue("rinhaQueue", true);
+        return new Queue("rinhaQueue", false);
     }
 
     @Bean

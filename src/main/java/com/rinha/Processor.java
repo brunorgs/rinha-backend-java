@@ -40,11 +40,11 @@ public class Processor {
     public Integer callService(Payment payment)  {
 
         payment.setRequestedAt(Instant.now());
-        Integer status = httpClientConfig.callPayment(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), payment.getRequestedAt().toString()), false);
+        Integer status = httpClientConfig.callPayment(payment, false);
 
         if(status >= 500) {
             shouldUseFallback.set(true);
-            status = httpClientConfig.callPayment(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), payment.getRequestedAt().toString()), true);
+            status = httpClientConfig.callPayment(payment, true);
             if(status == 200) payment.setFallback(true);
             if(status == 500) skipCalls.set(true);
         }

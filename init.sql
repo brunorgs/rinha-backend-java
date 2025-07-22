@@ -1,7 +1,7 @@
 CREATE TABLE public.payment (
 	amount numeric(38, 2) NULL,
 	fallback bool NULL,
-	requested_at timestamptz(6) NULL,
+	requested_at timestamp NULL,
 	id SERIAL PRIMARY KEY
 );
 

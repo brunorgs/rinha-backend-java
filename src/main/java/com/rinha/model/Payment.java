@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 public class Payment implements Serializable {
-    private UUID id;
     private String correlationId;
     private BigDecimal amount;
     private boolean fallback;
@@ -17,21 +16,7 @@ public class Payment implements Serializable {
         this.amount = amount;
     }
 
-    public Payment(UUID id, String correlationId, BigDecimal amount) {
-        this.id = id;
-        this.correlationId = correlationId;
-        this.amount = amount;
-    }
-
     public Payment() {
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
     }
 
     public String getCorrelationId() {
