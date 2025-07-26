@@ -1,7 +1,7 @@
 package com.rinha.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rinha.dto.PaymentRequest;
+import com.rinha.Processor;
 import com.rinha.dto.StatusResponse;
 import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
@@ -14,12 +14,14 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.io.HttpClientResponseHandler;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.TopicExchange;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.listener.PatternTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -95,22 +97,32 @@ public class Config {
     public HikariDataSource hikariDataSource() {
         HikariDataSource ds = new HikariDataSource();
         ds.setJdbcUrl("jdbc:postgresql://localhost:5432/rinha?currentSchema=public&user=postgres&password=postgres");
-        ds.setMaximumPoolSize(18);
         return ds;
     }
 
+
     @Bean
-    public Queue queue() {
-        return new Queue("rinhaQueue", false);
+    public RedisMessageListenerContainer container(RedisConnectionFactory connectionFactory, MessageListenerAdapter listenerAdapter) {
+
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.addMessageListener(listenerAdapter, new PatternTopic("payments"));
+
+        return container;
     }
 
     @Bean
-    public TopicExchange exchange() {
-        return new TopicExchange("rinhaExchange");
+    public MessageListenerAdapter listenerAdapter(Processor receiver) {
+        MessageListenerAdapter receiveMessage = new MessageListenerAdapter(receiver, "onMessage");
+        receiveMessage.setSerializer(new Jackson2JsonRedisSerializer<>(Payment.class));
+        return receiveMessage;
     }
 
     @Bean
-    public Binding binding(Queue queue, TopicExchange exchange) {
-        return BindingBuilder.bind(queue).to(exchange).with("payment");
+    public RedisTemplate<String, Payment> paymentTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Payment> redisTemplate = new RedisTemplate<>();
+        redisTemplate.setConnectionFactory(connectionFactory);
+        redisTemplate.setDefaultSerializer(new Jackson2JsonRedisSerializer<>(Payment.class));
+        return redisTemplate;
     }
 }

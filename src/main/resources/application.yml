@@ -4,31 +4,10 @@ spring:
   threads:
     virtual:
       enabled: true
-  rabbitmq:
-    username: rinha
-    password: rinha
-  datasource:
-    url: jdbc:postgresql://localhost:5432/rinha
-    username: postgres
-    password: postgres
-  jpa:
-    hibernate:
-      ddl-auto: validate
-#    properties:
-#      hibernate:
-#        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 logging:
   level:
     org.springframework.r2dbc: INFO
     io.r2dbc.postgresql: INFO
 #    org.postgresql: TRACE
-#    com.zaxxer.hikari: DEBUG
-
-resilience4j.retry:
-  instances:
-    defaultPayment:
-      maxAttempts: 3
-      waitDuration: 2s
-      enableExponentialBackoff: true
-      exponentialBackoffMultiplier: 2
+#    com.zaxxer.hikari: TRACE

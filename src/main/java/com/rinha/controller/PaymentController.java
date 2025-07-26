@@ -1,16 +1,15 @@
 package com.rinha.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rinha.dto.PaymentRequest;
 import com.rinha.dto.PaymentSummary;
 import com.rinha.dto.PaymentSummaryResponse;
+import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,19 +21,17 @@ import java.time.Instant;
 public class PaymentController {
 
     private final HikariDataSource dataSource;
-    private final RabbitTemplate rabbitTemplate;
-    private final ObjectMapper objectMapper;
+    private final RedisTemplate<String, Payment> paymentTemplate;
 
-    public PaymentController(HikariDataSource dataSource, RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {
+    public PaymentController(HikariDataSource dataSource, RedisTemplate<String, Payment> paymentTemplate) {
         this.dataSource = dataSource;
-        this.rabbitTemplate = rabbitTemplate;
-        this.objectMapper = objectMapper;
+        this.paymentTemplate = paymentTemplate;
     }
 
     @PostMapping("/payments")
-    public ResponseEntity<Void> processPayment(@RequestBody PaymentRequest request) throws IOException {
+    public ResponseEntity<Void> processPayment(@RequestBody PaymentRequest request) {
 
-        rabbitTemplate.convertAndSend("rinhaExchange", "payment", objectMapper.writeValueAsString(request));
+        paymentTemplate.convertAndSend("payments", request.toModel());
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
@@ -44,9 +41,9 @@ public class PaymentController {
         return ResponseEntity.ok(getSummary(from, to));
     }
 
-    public PaymentSummaryResponse getSummary(Instant from, Instant to) {
+    private PaymentSummaryResponse getSummary(Instant from, Instant to) {
 
-        String query = "select COUNT(*), SUM(amount) from payment where requested_at between ?::timestamp and ?::timestamp group by fallback;";
+        String query = "select COUNT(*), SUM(amount), fallback from payment where requested_at >= ?::timestamp and requested_at < ?::timestamp group by fallback;";
 
         try(Connection conn = dataSource.getConnection();
             PreparedStatement preparedStatement = conn.prepareStatement(query)) {
@@ -58,15 +55,26 @@ public class PaymentController {
 
             boolean next = resultSet.next();
 
-            PaymentSummary d;
-            if(next) d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-            else d = new PaymentSummary(0, BigDecimal.ZERO);
+            PaymentSummary d = new PaymentSummary(0, BigDecimal.ZERO);
+            PaymentSummary f = new PaymentSummary(0, BigDecimal.ZERO);
+
+            if(next) {
+                if(!resultSet.getBoolean(3)) {
+                    d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
+                } else {
+                    f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
+                }
+            }
 
             next = resultSet.next();
 
-            PaymentSummary f;
-            if(next) f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-            else f = new PaymentSummary(0, BigDecimal.ZERO);
+            if(next) {
+                if(!resultSet.getBoolean(3)) {
+                    d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
+                } else {
+                    f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
+                }
+            }
 
             PaymentSummaryResponse response = new PaymentSummaryResponse(d, f);
 
