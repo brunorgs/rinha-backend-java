@@ -1,10 +1,12 @@
 server:
-  port: 9999
+  port: ${SERVER_PORT}
 spring:
   threads:
     virtual:
       enabled: true
-
+  data:
+    redis:
+      host: ${REDIS_HOST}
 logging:
   level:
     org.springframework.r2dbc: INFO

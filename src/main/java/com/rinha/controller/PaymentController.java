@@ -53,23 +53,11 @@ public class PaymentController {
 
             ResultSet resultSet = preparedStatement.executeQuery();
 
-            boolean next = resultSet.next();
-
             PaymentSummary d = new PaymentSummary(0, BigDecimal.ZERO);
             PaymentSummary f = new PaymentSummary(0, BigDecimal.ZERO);
 
-            if(next) {
-                if(!resultSet.getBoolean(3)) {
-                    d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-                } else {
-                    f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-                }
-            }
-
-            next = resultSet.next();
-
-            if(next) {
-                if(!resultSet.getBoolean(3)) {
+            while(resultSet.next()) {
+                if (!resultSet.getBoolean(3)) {
                     d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
                 } else {
                     f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
