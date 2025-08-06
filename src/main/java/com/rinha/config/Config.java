@@ -72,7 +72,7 @@ public class Config {
     public HikariDataSource hikariDataSource() {
         HikariDataSource ds = new HikariDataSource();
         ds.setJdbcUrl("jdbc:postgresql://localhost:5432/rinha?currentSchema=public&user=postgres&password=postgres");
-        ds.setMaximumPoolSize(18);
+//        ds.setMaximumPoolSize(18);
         return ds;
     }
 }

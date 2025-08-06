@@ -32,7 +32,7 @@ public class PaymentController {
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
-    public void queueInsert(PaymentRequest request) {
+    private void queueInsert(PaymentRequest request) {
 
         String query = "INSERT INTO queue (correlation_id, amount) VALUES (?, ?)";
 
@@ -54,9 +54,9 @@ public class PaymentController {
         return ResponseEntity.ok(getSummary(from, to));
     }
 
-    public PaymentSummaryResponse getSummary(Instant from, Instant to) {
+    private PaymentSummaryResponse getSummary(Instant from, Instant to) {
 
-        String query = "select COUNT(*), SUM(amount) from payment where requested_at between ?::timestamp and ?::timestamp group by fallback;";
+        String query = "select COUNT(*), SUM(amount), fallback from payment where requested_at >= ?::timestamp and requested_at < ?::timestamp group by fallback;";
 
         try(Connection conn = dataSource.getConnection();
             PreparedStatement preparedStatement = conn.prepareStatement(query)) {
@@ -66,17 +66,16 @@ public class PaymentController {
 
             ResultSet resultSet = preparedStatement.executeQuery();
 
-            boolean next = resultSet.next();
+            PaymentSummary d = new PaymentSummary(0, BigDecimal.ZERO);
+            PaymentSummary f = new PaymentSummary(0, BigDecimal.ZERO);
 
-            PaymentSummary d;
-            if(next) d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-            else d = new PaymentSummary(0, BigDecimal.ZERO);
-
-            next = resultSet.next();
-
-            PaymentSummary f;
-            if(next) f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-            else f = new PaymentSummary(0, BigDecimal.ZERO);
+            while(resultSet.next()) {
+                if (!resultSet.getBoolean(3)) {
+                    d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
+                } else {
+                    f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
+                }
+            }
 
             PaymentSummaryResponse response = new PaymentSummaryResponse(d, f);
 

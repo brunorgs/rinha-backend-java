@@ -37,19 +37,15 @@ public class Processor {
     }
 
     @Async("processPaymentExecutor")
-    @Scheduled(fixedRate = 1)
+    @Scheduled(fixedRate = 10)
     public void queuePop() {
 
         long start = System.currentTimeMillis();
         String query = "delete from queue qe where qe.id = (select id from queue q order by q.created_at asc limit 1 for update skip locked) returning qe.correlation_id, qe.amount;";
 
-        try(Connection conn = dataSource.getConnection()) {
-//            PreparedStatement preparedStatement = conn.prepareStatement(query);
-//            ResultSet rs = preparedStatement.executeQuery()) {
-
-            conn.setAutoCommit(false);
+        try(Connection conn = dataSource.getConnection();
             PreparedStatement preparedStatement = conn.prepareStatement(query);
-            ResultSet rs = preparedStatement.executeQuery();
+            ResultSet rs = preparedStatement.executeQuery()) {
 
             while(rs.next()) {
 
@@ -69,9 +65,6 @@ public class Processor {
                 }
             }
 
-            conn.commit();
-            preparedStatement.close();
-            rs.close();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -79,7 +72,7 @@ public class Processor {
 //        System.out.println("TIME " + (System.currentTimeMillis() - start));
     }
 
-    public Integer callService(Payment payment)  {
+    private Integer callService(Payment payment)  {
 
         payment.setRequestedAt(Instant.now());
         Integer status = httpClientConfig.callPayment(new PaymentRequest(payment.getCorrelationId(), payment.getAmount(), payment.getRequestedAt().toString()), false);
@@ -92,7 +85,7 @@ public class Processor {
         return status;
     }
 
-    public void queueInsert(PaymentRequest request, Connection conn) {
+    private void queueInsert(PaymentRequest request, Connection conn) {
 
         String query = "INSERT INTO queue (correlation_id, amount) VALUES (?, ?)";
 
@@ -108,16 +101,15 @@ public class Processor {
         }
     }
 
-    public void insertPayment(Payment payment, Connection conn) {
+    private void insertPayment(Payment payment, Connection conn) {
 
-        String query = "INSERT INTO payment (id, correlation_id, amount, requested_at, fallback) VALUES (gen_random_uuid(), ?, ?, ?, ?)";
+        String query = "INSERT INTO payment (amount, requested_at, fallback) VALUES (?, ?, ?)";
 
         try(PreparedStatement preparedStatement = conn.prepareStatement(query)) {
 
-            preparedStatement.setString(1, payment.getCorrelationId());
-            preparedStatement.setBigDecimal(2, payment.getAmount());
-            preparedStatement.setTimestamp(3, Timestamp.from(payment.getRequestedAt()));
-            preparedStatement.setBoolean(4, payment.getFallback());
+            preparedStatement.setBigDecimal(1, payment.getAmount());
+            preparedStatement.setTimestamp(2, Timestamp.from(payment.getRequestedAt()));
+            preparedStatement.setBoolean(3, payment.getFallback());
 
             preparedStatement.execute();
 
