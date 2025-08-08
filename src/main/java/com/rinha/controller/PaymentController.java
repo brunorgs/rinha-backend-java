@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -29,16 +30,15 @@ public class PaymentController {
     }
 
     @PostMapping("/payments")
-    public ResponseEntity<Void> processPayment(@RequestBody PaymentRequest request) {
+    public Mono<Void> processPayment(@RequestBody PaymentRequest request) {
 
-        paymentTemplate.convertAndSend("payments", request.toModel());
-
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        return Mono.fromSupplier(() -> paymentTemplate.convertAndSend("payments", request.toModel()))
+                .flatMap(r -> Mono.empty());
     }
 
     @GetMapping("/payments-summary")
-    public ResponseEntity<PaymentSummaryResponse> getPaymentsSummary(@RequestParam Instant from, @RequestParam Instant to) {
-        return ResponseEntity.ok(getSummary(from, to));
+    public Mono<PaymentSummaryResponse> getPaymentsSummary(@RequestParam Instant from, @RequestParam Instant to) {
+        return Mono.fromSupplier(() -> getSummary(from, to));
     }
 
     private PaymentSummaryResponse getSummary(Instant from, Instant to) {

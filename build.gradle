@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation "org.springframework.boot:spring-boot-starter-data-redis"
     runtimeOnly 'org.postgresql:postgresql'
     implementation "com.zaxxer:HikariCP:6.3.0"
