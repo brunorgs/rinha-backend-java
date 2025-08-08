@@ -77,19 +77,23 @@ public class Processor {
 
     public void handleMessage(Payment payment) {
 
-        if(skipCalls.get()) {
-            paymentTemplate.convertAndSend("payments", payment);
-            return;
-        }
+//        if(skipCalls.get()) {
+//            paymentTemplate.convertAndSend("payments", payment);
+//            return;
+//        }
 
         int status = callService(payment);
 
         if(status == 200) {
             insertPayment(payment);
+        } else {
+            payment.setRequestedAt(null);
+            payment.setFallback(false);
+            paymentTemplate.convertAndSend("payments", payment);
         }
     }
 
-    @Scheduled(fixedRate = 5000)
+//    @Scheduled(fixedRate = 5000)
     public void status() {
 
         StatusResponse statusDefault = callStatus();
@@ -146,8 +150,8 @@ public class Processor {
             request.setHeader("Content-type", "application/json");
 
             return httpClient.execute(request, HttpResponse::getCode);
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+//            e.printStackTrace();
         }
 
         return 0;
@@ -161,8 +165,8 @@ public class Processor {
             request.setHeader("Content-type", "application/json");
 
             return httpClient.execute(request, HttpResponse::getCode);
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+//            e.printStackTrace();
         }
 
         return 0;

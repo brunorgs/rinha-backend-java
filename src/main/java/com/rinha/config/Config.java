@@ -3,9 +3,14 @@ package com.rinha.config;
 import com.rinha.Processor;
 import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
+import org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -30,6 +35,7 @@ public class Config {
     public CloseableHttpClient httpClient() {
 
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+        connectionManager.setDefaultConnectionConfig(ConnectionConfig.custom().setSocketTimeout(Timeout.ofSeconds(1)).build());
 
         return HttpClients
                 .custom()

@@ -39,7 +39,7 @@ public class Payment implements Serializable {
         return fallback;
     }
 
-    public void setFallback(Boolean fallback) {
+    public void setFallback(boolean fallback) {
         this.fallback = fallback;
     }
 
