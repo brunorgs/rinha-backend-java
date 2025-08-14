@@ -6,8 +6,6 @@ import com.rinha.dto.PaymentSummaryResponse;
 import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -31,7 +29,6 @@ public class PaymentController {
 
     @PostMapping("/payments")
     public Mono<Void> processPayment(@RequestBody PaymentRequest request) {
-
         return Mono.fromSupplier(() -> paymentTemplate.convertAndSend("payments", request.toModel()))
                 .flatMap(r -> Mono.empty());
     }
@@ -43,37 +40,62 @@ public class PaymentController {
 
     private PaymentSummaryResponse getSummary(Instant from, Instant to) {
 
-        String query = "select COUNT(*), SUM(amount), fallback from payment where requested_at >= ?::timestamp and requested_at < ?::timestamp group by fallback;";
+        try(Connection conn = dataSource.getConnection()) {
+            return new PaymentSummaryResponse(defaultPayments(conn, from, to), fallbackPayments(conn, from, to));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-        try(Connection conn = dataSource.getConnection();
-            PreparedStatement preparedStatement = conn.prepareStatement(query)) {
+        return new PaymentSummaryResponse(new PaymentSummary(0, BigDecimal.ZERO), new PaymentSummary(0, BigDecimal.ZERO));
+    }
+
+    private PaymentSummary defaultPayments(Connection conn, Instant from, Instant to) {
+
+        String query = "select COUNT(*), SUM(amount) from payment where requested_at >= ?::timestamp and requested_at < ?::timestamp;";
+
+        try (PreparedStatement preparedStatement = conn.prepareStatement(query)) {
 
             preparedStatement.setTimestamp(1, Timestamp.from(from));
             preparedStatement.setTimestamp(2, Timestamp.from(to));
 
             ResultSet resultSet = preparedStatement.executeQuery();
 
-            PaymentSummary d = new PaymentSummary(0, BigDecimal.ZERO);
-            PaymentSummary f = new PaymentSummary(0, BigDecimal.ZERO);
-
-            while(resultSet.next()) {
-                if (!resultSet.getBoolean(3)) {
-                    d = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-                } else {
-                    f = new PaymentSummary(resultSet.getInt(1), resultSet.getObject(2, BigDecimal.class));
-                }
+            if (resultSet.next()) {
+                BigDecimal bigDecimal = resultSet.getBigDecimal(2);
+                if(bigDecimal == null) bigDecimal = BigDecimal.ZERO;
+                return new PaymentSummary(resultSet.getInt(1), bigDecimal);
             }
 
-            PaymentSummaryResponse response = new PaymentSummaryResponse(d, f);
-
             resultSet.close();
-
-            return response;
-
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        return null;
+        return new PaymentSummary(0, BigDecimal.ZERO);
+    }
+
+    private PaymentSummary fallbackPayments(Connection conn, Instant from, Instant to) {
+
+        String query = "select COUNT(*), SUM(amount) from payment_fallback where requested_at >= ?::timestamp and requested_at < ?::timestamp;";
+
+        try (PreparedStatement preparedStatement = conn.prepareStatement(query)) {
+
+            preparedStatement.setTimestamp(1, Timestamp.from(from));
+            preparedStatement.setTimestamp(2, Timestamp.from(to));
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            if (resultSet.next()) {
+                BigDecimal bigDecimal = resultSet.getBigDecimal(2);
+                if(bigDecimal == null) bigDecimal = BigDecimal.ZERO;
+                return new PaymentSummary(resultSet.getInt(1), bigDecimal);
+            }
+
+            resultSet.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return new PaymentSummary(0, BigDecimal.ZERO);
     }
 }

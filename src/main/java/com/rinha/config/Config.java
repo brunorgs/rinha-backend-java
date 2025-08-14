@@ -3,14 +3,6 @@ package com.rinha.config;
 import com.rinha.Processor;
 import com.rinha.model.Payment;
 import com.zaxxer.hikari.HikariDataSource;
-import org.apache.hc.client5.http.config.ConnectionConfig;
-import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
-import org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -21,6 +13,8 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.stereotype.Component;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.concurrent.Executors;
 
 @Component
@@ -28,18 +22,14 @@ public class Config {
 
     @Value("${DB_URL:jdbc:postgresql://localhost:5432/rinha?currentSchema=public&user=postgres&password=postgres}")
     private String dbUrl;
-    @Value("${LISTENER_THREADS:4}")
+    @Value("${LISTENER_THREADS:8}")
     private Integer listenerThreads;
 
     @Bean
-    public CloseableHttpClient httpClient() {
-
-        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setDefaultConnectionConfig(ConnectionConfig.custom().setSocketTimeout(Timeout.ofSeconds(1)).build());
-
-        return HttpClients
-                .custom()
-                .setConnectionManager(connectionManager)
+    public HttpClient javaHttpClient() {
+        return HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(1))
+                .executor(Executors.newVirtualThreadPerTaskExecutor())
                 .build();
     }
 
@@ -57,6 +47,7 @@ public class Config {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(listenerAdapter, new PatternTopic("payments"));
+//        container.setTaskExecutor(Executors.newVirtualThreadPerTaskExecutor());
         container.setTaskExecutor(Executors.newFixedThreadPool(listenerThreads));
 
         return container;
