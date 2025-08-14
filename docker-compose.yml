@@ -1,0 +1,114 @@
+services:
+  backend1:
+    image: rinha
+    hostname: backend1
+    ports:
+      - '9090:9090'
+    networks:
+      - payment-processor
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      - DEFAULT_URL=http://payment-processor-default:8080
+      - FALLBACK_URL=http://payment-processor-fallback:8080
+      - DB_URL=jdbc:postgresql://db:5432/rinha?currentSchema=public&user=admin&password=123
+      - LISTENER_THREADS=4
+      - REDIS_HOST=redis
+      - SERVER_PORT=9090
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: "100MB"
+  backend2:
+    image: rinha
+    hostname: backend1
+    ports:
+      - '9091:9091'
+    networks:
+      - payment-processor
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      - DEFAULT_URL=http://payment-processor-default:8080
+      - FALLBACK_URL=http://payment-processor-fallback:8080
+      - DB_URL=jdbc:postgresql://db:5432/rinha?currentSchema=public&user=admin&password=123
+      - LISTENER_THREADS=4
+      - REDIS_HOST=redis
+      - SERVER_PORT=9090
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: "100MB"
+  redis:
+    image: 'redis:8.0.3-alpine'
+    hostname: redis
+    ports:
+      - '6379:6379'
+#    network_mode: bridge
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: "25MB"
+  nginx:
+    image: nginx:stable-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "9999:9999"
+    networks:
+      - backend
+    depends_on:
+      - backend1
+      - backend2
+    deploy:
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: "25MB"
+  db:
+    image: postgres:17-alpine
+    hostname: db
+    environment:
+      - POSTGRES_PASSWORD=123
+      - POSTGRES_USER=admin
+      - POSTGRES_DB=rinha
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/1-init.sql
+#      - ./postgresql.conf:/etc/postgresql/postgresql.conf
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d rinha" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: "100MB"
+networks:
+  backend:
+    driver: bridge
+  payment-processor:
+    external: true
