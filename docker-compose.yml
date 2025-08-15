@@ -26,7 +26,7 @@ services:
           memory: "100MB"
   backend2:
     image: rinha
-    hostname: backend1
+    hostname: backend2
     ports:
       - '9091:9091'
     networks:
@@ -43,7 +43,7 @@ services:
       - DB_URL=jdbc:postgresql://db:5432/rinha?currentSchema=public&user=admin&password=123
       - LISTENER_THREADS=4
       - REDIS_HOST=redis
-      - SERVER_PORT=9090
+      - SERVER_PORT=9091
     deploy:
       resources:
         limits:
